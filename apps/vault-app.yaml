@@ -1,0 +1,42 @@
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: vault
+  namespace: argocd          # где запущен Argo CD
+spec:
+  project: default
+  source:
+    repoURL: https://helm.releases.hashicorp.com
+    chart: vault
+    targetRevision: 0.30.0        # последняя стабильная версия чарта (март 2025)  [oai_citation:1‡github.com](https://github.com/hashicorp/vault-helm/releases)
+    helm:
+      values: |
+        # --- минимальные production-safe настройки ---
+        global:
+          openshift: false        # K3s = обычный Kubernetes
+        server:
+          image:
+            tag: "1.19.0"         # подтягивается автоматически, но можно зафиксировать
+          ha:
+            enabled: true
+            replicas: 3
+          dataStorage:
+            enabled: true
+            size: 5Gi            # PVC на local-path-storage K3s
+          standalone:             # выключаем dev-mode
+            enabled: false
+          extraEnvironmentVars:   # пример: включаем UI
+            VAULT_UI: "true"
+          authDelegator:
+            enabled: true         # пригодится, если планируете AVP
+        injector:
+          enabled: true           # sidecar-injector для Pod-секретов
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: vault
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    syncOptions:
+      - CreateNamespace=true      # создаст ns при первом sync
